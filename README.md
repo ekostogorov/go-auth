@@ -3,7 +3,7 @@ JWT auth library for GoLang
 
 Simple Go library for authorization based on JWT.
 
-Use ```go Encode(userID string)``` to encode user id into JWT and ```go Decode(accessToken string)``` to decode token into user id.
+Use ```Encode(userID string)``` to encode user id into JWT and ```Decode(accessToken string)``` to decode token into user id.
 
 ## Example
 
