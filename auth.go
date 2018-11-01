@@ -27,6 +27,9 @@ func (auth *Client) Encode(userID string) (accessToken string, err error) {
 	if err = auth.checkSalt(); err != nil {
 		return
 	}
+	if err = auth.checkExpiry(); err != nil {
+		return
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
 		"expiry":  auth.expiry,
@@ -43,6 +46,9 @@ func (auth *Client) Encode(userID string) (accessToken string, err error) {
 func (auth *Client) Decode(accessToken string) (userID string, err error) {
 	var result decodeResult
 
+	if err = auth.checkSalt(); err != nil {
+		return
+	}
 	jwtToken, err := jwt.Parse(accessToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf(ErrUnexpectSign, token.Header["alg"])
@@ -71,6 +77,15 @@ func (auth *Client) Decode(accessToken string) (userID string, err error) {
 func (auth *Client) checkSalt() (err error) {
 	if len(auth.salt) == 0 {
 		err = errors.New(ErrEmptySalt)
+		return
+	}
+
+	return
+}
+
+func (auth *Client) checkExpiry() (err error) {
+	if auth.expiry == 0 || auth.expiry < time.Now().UTC().Unix() {
+		err = errors.New(ErrWrongExpiry)
 		return
 	}
 

@@ -5,6 +5,7 @@ const (
 	ErrEmptySalt    = "Salt is empty string"
 	ErrUnexpectSign = "Unexpected signing method: %v"
 	ErrExpiredToken = "Access token expired"
+	ErrWrongExpiry  = "Wrong expiration date"
 )
 
 type decodeResult struct {
