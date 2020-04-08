@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/dgrijalva/jwt-go"
 )
 
 // Client represents JWT auth module
@@ -15,15 +15,25 @@ type Client struct {
 }
 
 // New constructs JWTAuth module
-func New(salt string, expiryDate int64) *Client {
+func New(salt string, expiryPeriod int64) (*Client, error) {
+	if expiryPeriod <= 0 {
+		return nil, errors.New(ErrExpiryLoEqZero)
+	}
+
 	return &Client{
 		salt:   salt,
-		expiry: expiryDate,
-	}
+		expiry: expiryPeriod,
+	}, nil
 }
 
-// Encode hashes userID into access token with expiry
-func (auth *Client) Encode(userID string) (accessToken string, err error) {
+// Encode hashes userID and additional data into access token with expiry
+func (auth *Client) Encode(payload AuthPayload) (accessToken string, err error) {
+	if payload.UserID == "" {
+		return "", errors.New(ErrEmptyUserID)
+	}
+
+	expiryUnix := time.Now().UTC().Unix() + auth.expiry
+
 	if err = auth.checkSalt(); err != nil {
 		return
 	}
@@ -31,8 +41,9 @@ func (auth *Client) Encode(userID string) (accessToken string, err error) {
 		return
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": userID,
-		"expiry":  auth.expiry,
+		"user_id": payload.UserID,
+		"expiry":  expiryUnix,
+		"data":    payload.Data,
 	})
 	accessToken, err = token.SignedString([]byte(auth.salt))
 	if err != nil {
@@ -42,10 +53,8 @@ func (auth *Client) Encode(userID string) (accessToken string, err error) {
 	return
 }
 
-// Decode decodes JWT into user ID, checks expiration
-func (auth *Client) Decode(accessToken string) (userID string, err error) {
-	var result decodeResult
-
+// Decode decodes JWT into user ID and additional data, checks expiration
+func (auth *Client) Decode(accessToken string) (payload AuthPayload, err error) {
 	if err = auth.checkSalt(); err != nil {
 		return
 	}
@@ -60,15 +69,24 @@ func (auth *Client) Decode(accessToken string) (userID string, err error) {
 		return
 	}
 
+	var expiry int64
 	if claims, ok := jwtToken.Claims.(jwt.MapClaims); ok && jwtToken.Valid {
-		result.UserID = claims["user_id"].(string)
-		result.Expiry = int64(claims["expiry"].(float64))
+		if userID, ok := claims["user_id"].(string); ok {
+			payload.UserID = userID
+		}
+		if data, ok := claims["data"]; ok {
+			payload.Data = data
+		}
+		if tokenExp, ok := claims["expiry"].(float64); ok {
+			expiry = int64(tokenExp)
+		}
 	}
 
-	userID = result.UserID
-	if time.Now().UTC().Unix() > result.Expiry {
-		err = errors.New(ErrExpiredToken)
-		return
+	if time.Now().UTC().Unix() > expiry {
+		return payload, errors.New(ErrExpiredToken)
+	}
+	if payload.UserID == "" {
+		return payload, errors.New(ErrEmptyUserID)
 	}
 
 	return
